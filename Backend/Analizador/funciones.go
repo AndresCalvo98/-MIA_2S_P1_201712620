@@ -118,7 +118,7 @@ var graphDot string = ""
 
 // Obtiene y lee el comando
 func Analizar() {
-	fmt.Println("Bienvenido al API del Ejemplo 7")
+	fmt.Println("Bienvenido al API del Proyecto de 201712620")
 
 	mux := http.NewServeMux()
 
@@ -2857,6 +2857,72 @@ func graficar_mbr(direccion string, path_reporte string) {
 	os.Remove(path_html)
 
 	salida_comando += "[SUCCES] Reporte MBR generado con éxito como JPG!\\n"
+}
+
+// Función para graficar particiones lógicas y los EBR
+func graficar_ebr_y_logicas(f *os.File, part Partition, file *os.File) {
+	// Iniciamos en el inicio de la partición extendida
+	pos := strings.Trim(string(part.Part_start[:]), "\x00") // Limpiar caracteres nulos
+	start, err := strconv.ParseInt(pos, 10, 64)
+	if err != nil {
+		salida_comando += "[ERROR] Error al leer la posición inicial del EBR...\\n"
+		return
+	}
+
+	salida_comando += "[INFO] Iniciando la lectura de particiones lógicas...\\n"
+
+	// Leer el primer EBR en la partición extendida y graficar las particiones lógicas
+	for start != -1 {
+		ebr := EBR{}
+		ebr_bytes := struct_a_bytes(ebr)
+		lectura := make([]byte, len(ebr_bytes))
+
+		_, err := f.Seek(start, io.SeekStart)
+		if err != nil {
+			salida_comando += "[ERROR] Error al mover el cursor a la posición del EBR...\\n"
+			return
+		}
+
+		_, err = f.Read(lectura)
+		if err != nil {
+			salida_comando += "[ERROR] Error al leer el EBR desde el disco...\\n"
+			return
+		}
+
+		ebr = bytes_a_struct_ebr(lectura)
+
+		// Graficar EBR
+		fmt.Fprintln(file, "<tr><td colspan='2'><b>Partición Lógica (EBR)</b></td></tr>")
+		fmt.Fprintf(file, "<tr><td>part_status</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_status[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_next</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_next[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_fit</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_fit[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_start</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_start[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_size</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_size[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_name</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_name[:]), "\x00"))
+
+		// Verificar si el `part_start` es válido para esta partición lógica
+		ebr_start, _ := strconv.Atoi(strings.TrimSpace(string(ebr.Part_start[:])))
+		salida_comando += fmt.Sprintf("[INFO] Graficando partición lógica con part_start: %d\\n", ebr_start)
+		if ebr_start != -1 {
+			// Graficar la partición lógica si su part_start es válido
+			fmt.Fprintln(file, "<tr><td colspan='2'><b>Partición Lógica</b></td></tr>")
+			fmt.Fprintf(file, "<tr><td>part_status</td><td>%s</td></tr>", string(ebr.Part_status[:]))
+			fmt.Fprintf(file, "<tr><td>part_fit</td><td>%s</td></tr>", string(ebr.Part_fit[:]))
+			fmt.Fprintf(file, "<tr><td>part_start</td><td>%s</td></tr>", string(ebr.Part_start[:]))
+			fmt.Fprintf(file, "<tr><td>part_size</td><td>%s</td></tr>", string(ebr.Part_size[:]))
+			fmt.Fprintf(file, "<tr><td>part_name</td><td>%s</td></tr>", string(ebr.Part_name[:]))
+		} else {
+			salida_comando += "[INFO] Partición lógica con part_start = -1, no será graficada.\\n"
+		}
+
+		// Siguiente EBR
+		next_pos := strings.Trim(string(ebr.Part_next[:]), "\x00") // Limpiar caracteres nulos
+		start, err = strconv.ParseInt(next_pos, 10, 64)
+		if err != nil {
+			salida_comando += "[ERROR] Error al leer la posición del siguiente EBR...\\n"
+			return
+		}
+	}
 }
 
 // Función auxiliar para crear una carpeta con permisos sudo
