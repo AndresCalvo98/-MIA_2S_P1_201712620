@@ -2780,13 +2780,6 @@ func graficar_mbr(direccion string, path_reporte string) {
 	// Intentar crear la carpeta con permisos usando sudo
 	crear_carpeta_con_permisos(filepath.Dir(path_reporte))
 
-	// Verificar si la carpeta existe
-	err = os.MkdirAll(filepath.Dir(path_reporte), os.ModePerm)
-	if err != nil {
-		salida_comando += "[ERROR] No se pudo crear la carpeta para el reporte...\\n"
-		return
-	}
-
 	// Crear el archivo temporal HTML
 	path_html := strings.Replace(path_reporte, ".jpg", ".html", 1)
 	file, err := os.Create(path_html)
@@ -2819,22 +2812,30 @@ func graficar_mbr(direccion string, path_reporte string) {
 	fmt.Fprintf(file, "<tr><td>mbr_tamano</td><td>%s</td></tr>", string(master_boot_record.Mbr_tamano[:]))
 	fmt.Fprintf(file, "<tr><td>mbr_fecha_creacion</td><td>%s</td></tr>", string(master_boot_record.Mbr_fecha_creacion[:]))
 	fmt.Fprintf(file, "<tr><td>mbr_dsk_signature</td><td>%s</td></tr>", string(master_boot_record.Mbr_dsk_signature[:]))
+	fmt.Fprintf(file, "<tr><td>mbr_dsk_fit</td><td>%s</td></tr>", string(master_boot_record.Dsk_fit[:])) // Añadimos el dsk_fit
 
-	// Graficar particiones
-	for _, part := range master_boot_record.Mbr_partition {
-		if part.Part_status[0] != '0' {
-			fmt.Fprintln(file, "<tr><td colspan='2'><b>Particion</b></td></tr>")
-			fmt.Fprintf(file, "<tr><td>part_status</td><td>%s</td></tr>", string(part.Part_status[:]))
-			fmt.Fprintf(file, "<tr><td>part_type</td><td>%s</td></tr>", string(part.Part_type[:]))
-			fmt.Fprintf(file, "<tr><td>part_fit</td><td>%s</td></tr>", string(part.Part_fit[:]))
-			fmt.Fprintf(file, "<tr><td>part_start</td><td>%s</td></tr>", string(part.Part_start[:]))
-			fmt.Fprintf(file, "<tr><td>part_size</td><td>%s</td></tr>", string(part.Part_size[:]))
-			fmt.Fprintf(file, "<tr><td>part_name</td><td>%s</td></tr>", string(part.Part_name[:]))
+	// Graficar todas las particiones, incluso si están inactivas
+	for i, part := range master_boot_record.Mbr_partition {
+		fmt.Fprintln(file, "<tr><td colspan='2'><b>Particion</b></td></tr>")
+		fmt.Fprintf(file, "<tr><td>part_status</td><td>%s</td></tr>", string(part.Part_status[:]))
+		fmt.Fprintf(file, "<tr><td>part_type</td><td>%s</td></tr>", string(part.Part_type[:]))
+		fmt.Fprintf(file, "<tr><td>part_fit</td><td>%s</td></tr>", string(part.Part_fit[:]))
+		fmt.Fprintf(file, "<tr><td>part_start</td><td>%s</td></tr>", string(part.Part_start[:]))
+		fmt.Fprintf(file, "<tr><td>part_size</td><td>%s</td></tr>", string(part.Part_size[:]))
+		fmt.Fprintf(file, "<tr><td>part_name</td><td>%s</td></tr>", string(part.Part_name[:]))
+		fmt.Fprintf(file, "<tr><td>part_correlative</td><td>%s</td></tr>", string(part.Part_Correlative[:])) // Añadimos el correlativo
+		fmt.Fprintf(file, "<tr><td>part_id</td><td>%s</td></tr>", string(part.Part_ID[:]))                   // Añadimos el ID
 
-			// Si es una partición extendida, leer los EBR
-			if string(part.Part_type[:]) == "e" {
-				leer_ebr(f, part, file)
-			}
+		// Si es una partición extendida, leer los EBR
+		if string(part.Part_type[:]) == "e" {
+			leer_ebr(f, part, file)
+		}
+
+		// Mensaje de depuración para verificar si la partición está activa o inactiva
+		if part.Part_status[0] == '0' {
+			salida_comando += fmt.Sprintf("[INFO] La partición %d está inactiva.\\n", i+1)
+		} else {
+			salida_comando += fmt.Sprintf("[INFO] La partición %d está activa.\\n", i+1)
 		}
 	}
 

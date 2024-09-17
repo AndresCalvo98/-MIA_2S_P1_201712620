@@ -6,11 +6,14 @@ digraph G{
      <table border='0' cellborder='2' width='600' height='150' color='dodgerblue1'>
      <tr>
      <td height='150' width='110'> MBR </td>
-     <td height='200' width='100'>Primaria <br/> 20 por ciento del Disco </td>
-     <td height='200' width='100'>Primaria <br/> 20 por ciento del Disco </td>
-     <td height='200' width='100'>Primaria <br/> 20 por ciento del Disco </td>
-     <td height='200' width='100'>Primaria <br/> 20 por ciento del Disco </td>
-     <td height='200' width='100'>Libre<br/> 20 por ciento del Disco </td>
+     <td height='200' width='125'>Primaria <br/> 25 por ciento del Disco </td>
+     <td  height='200' width='25'>
+     <table border='0'  height='200' WIDTH='25' cellborder='1'>
+     <tr>  <td height='60' colspan='15'>Extendida</td>  </tr>
+     <tr>
+     </tr>
+     </table>
+     </td>
      </tr> 
      </table>        
 >];
