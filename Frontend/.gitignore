@@ -1,2 +1,39 @@
-# Node.js dependencies
-/node_modules/
+# Archivos de caché
+*.log
+*.tmp
+*.temp
+*.cache
+*.bak
+*.swp
+*.swo
+*.DS_Store
+Thumbs.db
+
+# Visual Studio
+.vscode/
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.pdb
+*.cache
+
+# Directorios de compilación
+bin/
+obj/
+out/
+
+# Node.js / npm
+node_modules/
+package-lock.json
+
+# Configuraciones del sistema
+*.iml
+.idea/
+*.vscode/
+.env
+
+# Go
+/go/bin/
+/go/pkg/

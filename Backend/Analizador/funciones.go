@@ -1006,23 +1006,23 @@ func crear_disco(ruta string) {
 	}
 
 	// Crea el directiorio de forma recursiva
-	cmd1 := exec.Command("/bin/sh", "-c", "echo 253097 | sudo -S mkdir -p '"+filepath.Dir(aux)+"'")
+	cmd1 := exec.Command("/bin/sh", "-c", "echo ?Real?Madrid?98 | sudo -S mkdir -p '"+filepath.Dir(aux)+"'")
 	cmd1.Dir = "/"
 	_, err = cmd1.Output()
 
 	// ERROR
 	if err != nil {
-		salida_comando += "[ERROR] Al ejecutar el comando\\n"
+		salida_comando += "[ERROR] 1 Al ejecutar el comando\\n"
 	}
 
 	// Da los permisos al directorio
-	cmd2 := exec.Command("/bin/sh", "-c", "echo 253097 | sudo -S chmod -R 777 '"+filepath.Dir(aux)+"'")
+	cmd2 := exec.Command("/bin/sh", "-c", "echo ?Real?Madrid?98 | sudo -S chmod -R 777 '"+filepath.Dir(aux)+"'")
 	cmd2.Dir = "/"
 	_, err = cmd2.Output()
 
 	// ERROR
 	if err != nil {
-		salida_comando += "[ERROR] Error al ejecutar el comando\\n"
+		salida_comando += "[ERROR] 2 Error al ejecutar el comando\\n"
 	}
 
 	// Verifica si existe la ruta para el archivo

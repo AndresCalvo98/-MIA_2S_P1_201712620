@@ -29,7 +29,7 @@ rep -id=301A -Path="/home/andres-pontaza/Documentos/Laboratorio MIA/Reportes/Dis
 rmdisk -path="/home/andres/Documentos/Discos/A.dsk"
 
 # MKDISK
-mkdisk -size=5 -unit=M -path="/home/andres-pontaza/Documentos/Discos/A.dsk"
+mkdisk -size=5 -unit=M -path="/home/andres/Documentos/Discos/A.dsk"
 
 # FDISK
 # Particion 1 (Primaria)
