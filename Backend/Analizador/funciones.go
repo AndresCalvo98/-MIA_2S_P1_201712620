@@ -858,7 +858,7 @@ func rep(commandArray []string) {
 	band_name := false
 	band_path := false
 	band_id := false
-	band_ruta := false
+	band_path_file_ls := false
 	band_error := false
 
 	// Limpio la variable global
@@ -913,16 +913,16 @@ func rep(commandArray []string) {
 
 			// Reemplaza comillas
 			val_id = val_data
-		/* PARAMETRO OBLIGATORIO -> RUTA */
-		case strings.Contains(data, "ruta="):
-			if band_ruta {
+		/* PARAMETRO OBLIGATORIO -> path_file_ls */
+		case strings.Contains(data, "path_file_ls= "):
+			if band_path_file_ls {
 				salida_comando += "[ERROR] El parametro -ruta ya fue ingresado...\\n"
 				band_error = true
 				break
 			}
 
 			// Activo la bandera del parametro
-			band_ruta = true
+			band_path_file_ls = true
 
 		/* PARAMETRO NO VALIDO */
 		default:
@@ -937,23 +937,25 @@ func rep(commandArray []string) {
 					var aux *Mount.Nodo = Mount.Obtener_nodo(val_id, lista_montajes)
 
 					if aux != nil {
-						// Reportes validos
+						// Reportes válidos
 						if val_name == "disk" {
 							graficar_disk(aux.Direccion, val_path)
+						} else if val_name == "mbr" {
+							graficar_mbr(aux.Direccion, val_path)
 						} else {
-							salida_comando += "[ERROR] Reporte no valido...\\n"
+							salida_comando += "[ERROR] Reporte no válido...\\n"
 						}
 					} else {
-						salida_comando += "[ERROR] No encuentra la particion...\\n"
+						salida_comando += "[ERROR] No encuentra la partición...\\n"
 					}
 				} else {
-					salida_comando += "[ERROR] El parametro -id no fue ingresado...\\n"
+					salida_comando += "[ERROR] El parámetro -id no fue ingresado...\\n"
 				}
 			} else {
-				salida_comando += "[ERROR] El parametro -name no fue ingresado...\n"
+				salida_comando += "[ERROR] El parámetro -name no fue ingresado...\\n"
 			}
 		} else {
-			salida_comando += "[ERROR] El parametro -path no fue ingresado...\\n"
+			salida_comando += "[ERROR] El parámetro -path no fue ingresado...\\n"
 		}
 	}
 
@@ -2763,4 +2765,181 @@ func bytes_a_struct_ebr(s []byte) EBR {
 	}
 
 	return p
+}
+
+// Función para graficar el MBR y EBR en formato HTML y luego convertirlo a JPG
+func graficar_mbr(direccion string, path_reporte string) {
+	// Abrir el archivo de disco
+	f, err := os.OpenFile(direccion, os.O_RDWR, 0660)
+	if err != nil {
+		salida_comando += "[ERROR] No se pudo abrir el archivo del disco...\\n"
+		return
+	}
+	defer f.Close()
+
+	// Intentar crear la carpeta con permisos usando sudo
+	crear_carpeta_con_permisos(filepath.Dir(path_reporte))
+
+	// Verificar si la carpeta existe
+	err = os.MkdirAll(filepath.Dir(path_reporte), os.ModePerm)
+	if err != nil {
+		salida_comando += "[ERROR] No se pudo crear la carpeta para el reporte...\\n"
+		return
+	}
+
+	// Crear el archivo temporal HTML
+	path_html := strings.Replace(path_reporte, ".jpg", ".html", 1)
+	file, err := os.Create(path_html)
+	if err != nil {
+		salida_comando += "[ERROR] No se pudo crear el archivo temporal HTML: " + err.Error() + "\\n"
+		return
+	}
+	defer file.Close()
+
+	// Graficar MBR en HTML
+	fmt.Fprintln(file, "<html><body>")
+	fmt.Fprintln(file, "<table border='1'>")
+	fmt.Fprintln(file, "<tr><th colspan='2'>REPORTE DE MBR</th></tr>")
+
+	mbr_empty := MBR{}
+
+	// Calculo del tamaño de struct en bytes
+	mbr2 := struct_a_bytes(mbr_empty)
+	sstruct := len(mbr2)
+
+	// Lectura del archivo binario desde el inicio
+	lectura := make([]byte, sstruct)
+	f.Seek(0, io.SeekStart)
+	f.Read(lectura)
+
+	// Conversion de bytes a struct
+	master_boot_record := bytes_a_struct_mbr(lectura)
+
+	// Imprimir datos del MBR en el reporte
+	fmt.Fprintf(file, "<tr><td>mbr_tamano</td><td>%s</td></tr>", string(master_boot_record.Mbr_tamano[:]))
+	fmt.Fprintf(file, "<tr><td>mbr_fecha_creacion</td><td>%s</td></tr>", string(master_boot_record.Mbr_fecha_creacion[:]))
+	fmt.Fprintf(file, "<tr><td>mbr_dsk_signature</td><td>%s</td></tr>", string(master_boot_record.Mbr_dsk_signature[:]))
+
+	// Graficar particiones
+	for _, part := range master_boot_record.Mbr_partition {
+		if part.Part_status[0] != '0' {
+			fmt.Fprintln(file, "<tr><td colspan='2'><b>Particion</b></td></tr>")
+			fmt.Fprintf(file, "<tr><td>part_status</td><td>%s</td></tr>", string(part.Part_status[:]))
+			fmt.Fprintf(file, "<tr><td>part_type</td><td>%s</td></tr>", string(part.Part_type[:]))
+			fmt.Fprintf(file, "<tr><td>part_fit</td><td>%s</td></tr>", string(part.Part_fit[:]))
+			fmt.Fprintf(file, "<tr><td>part_start</td><td>%s</td></tr>", string(part.Part_start[:]))
+			fmt.Fprintf(file, "<tr><td>part_size</td><td>%s</td></tr>", string(part.Part_size[:]))
+			fmt.Fprintf(file, "<tr><td>part_name</td><td>%s</td></tr>", string(part.Part_name[:]))
+
+			// Si es una partición extendida, leer los EBR
+			if string(part.Part_type[:]) == "e" {
+				leer_ebr(f, part, file)
+			}
+		}
+	}
+
+	fmt.Fprintln(file, "</table>")
+	fmt.Fprintln(file, "</body></html>")
+
+	// Cerrar el archivo HTML
+	file.Close()
+
+	// Convertir el HTML a una imagen JPG usando wkhtmltoimage
+	cmd := exec.Command("wkhtmltoimage", path_html, path_reporte)
+	err = cmd.Run()
+	if err != nil {
+		salida_comando += "[ERROR] No se pudo convertir el HTML a imagen: " + err.Error() + "\\n"
+		return
+	}
+
+	// Eliminar el archivo HTML temporal
+	os.Remove(path_html)
+
+	salida_comando += "[SUCCES] Reporte MBR generado con éxito como JPG!\\n"
+}
+
+// Función auxiliar para crear una carpeta con permisos sudo
+func crear_carpeta_con_permisos(ruta string) {
+	aux, err := filepath.Abs(ruta)
+
+	// ERROR
+	if err != nil {
+		salida_comando += "[ERROR] Al obtener la ruta absoluta\\n"
+		return
+	}
+
+	// Crear el directorio de forma recursiva con permisos sudo
+	cmd1 := exec.Command("/bin/sh", "-c", "echo ?Real?Madrid?98 | sudo -S mkdir -p '"+aux+"'")
+	cmd1.Dir = "/"
+	_, err = cmd1.Output()
+
+	// ERROR
+	if err != nil {
+		salida_comando += "[ERROR] No se pudo crear la carpeta del reporte con sudo: " + err.Error() + "\\n"
+		return
+	}
+
+	// Otorgar permisos al directorio con sudo
+	cmd2 := exec.Command("/bin/sh", "-c", "echo ?Real?Madrid?98 | sudo -S chmod -R 777 '"+aux+"'")
+	cmd2.Dir = "/"
+	_, err = cmd2.Output()
+
+	// ERROR
+	if err != nil {
+		salida_comando += "[ERROR] No se pudieron otorgar permisos a la carpeta del reporte con sudo: " + err.Error() + "\\n"
+		return
+	}
+
+	// Confirmar que la carpeta fue creada correctamente
+	if _, err := os.Stat(aux); errors.Is(err, os.ErrNotExist) {
+		salida_comando += "[FAILURE] No se pudo crear la carpeta del reporte...\\n"
+	}
+}
+
+// Función para leer y graficar EBR
+func leer_ebr(f *os.File, part Partition, file *os.File) {
+	pos := strings.Trim(string(part.Part_start[:]), "\x00") // Limpiar caracteres nulos
+	start, err := strconv.ParseInt(pos, 10, 64)
+	if err != nil {
+		salida_comando += "[ERROR] Error al leer la posición inicial del EBR...\\n"
+		return
+	}
+
+	// Leer el EBR en la partición extendida
+	for start != -1 {
+		ebr := EBR{}
+		ebr_bytes := struct_a_bytes(ebr)
+		lectura := make([]byte, len(ebr_bytes))
+
+		_, err := f.Seek(start, io.SeekStart)
+		if err != nil {
+			salida_comando += "[ERROR] Error al mover el cursor a la posición del EBR...\\n"
+			return
+		}
+
+		_, err = f.Read(lectura)
+		if err != nil {
+			salida_comando += "[ERROR] Error al leer el EBR desde el disco...\\n"
+			return
+		}
+
+		ebr = bytes_a_struct_ebr(lectura)
+
+		// Graficar EBR
+		fmt.Fprintln(file, "<tr><td colspan='2'><b>Partición Lógica (EBR)</b></td></tr>")
+		fmt.Fprintf(file, "<tr><td>part_status</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_status[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_next</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_next[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_fit</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_fit[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_start</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_start[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_size</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_size[:]), "\x00"))
+		fmt.Fprintf(file, "<tr><td>part_name</td><td>%s</td></tr>", strings.Trim(string(ebr.Part_name[:]), "\x00"))
+
+		// Siguiente EBR
+		next_pos := strings.Trim(string(ebr.Part_next[:]), "\x00") // Limpiar caracteres nulos
+		start, err = strconv.ParseInt(next_pos, 10, 64)
+		if err != nil {
+			salida_comando += "[ERROR] Error al leer la posición del siguiente EBR...\\n"
+			return
+		}
+	}
 }

@@ -9,7 +9,8 @@ digraph G{
      <td height='200' width='100'>Primaria <br/> 20 por ciento del Disco </td>
      <td height='200' width='100'>Primaria <br/> 20 por ciento del Disco </td>
      <td height='200' width='100'>Primaria <br/> 20 por ciento del Disco </td>
-     <td height='200' width='200'>Primaria <br/> 40 por ciento del Disco </td>
+     <td height='200' width='100'>Primaria <br/> 20 por ciento del Disco </td>
+     <td height='200' width='100'>Libre<br/> 20 por ciento del Disco </td>
      </tr> 
      </table>        
 >];
