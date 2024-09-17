@@ -80,36 +80,45 @@ func Buscar_particion(direccion string, nombre string, lista *Lista) bool {
 	return false
 }
 
-// Busca por direccion y obtiene el numero
+// Buscar_letra busca por dirección y obtiene la letra correspondiente al disco.
+// Si el disco es nuevo, asigna la letra 'A' por defecto.
 func Buscar_letra(direccion string, lista *Lista) string {
 	aux := lista.Primero
-	num_ascii := 65
+	ultima_letra := 'A' // Iniciamos con la letra A para el primer disco
 
+	// Recorremos la lista para ver las letras asignadas a discos previos
 	for aux != nil {
-		if (direccion == aux.Direccion) && (string(rune(num_ascii)) == aux.Letra) {
-			num_ascii++
+		// Si el disco es el mismo, retornamos la misma letra
+		if direccion == aux.Direccion {
+			return aux.Letra
+		}
+		// Si es un disco diferente, verificamos si necesitamos incrementar la letra
+		if rune(aux.Letra[0]) >= ultima_letra {
+			ultima_letra = rune(aux.Letra[0]) + 1 // Incrementar la letra si es necesario
 		}
 		aux = aux.Siguiente
 	}
 
-	return string(rune(num_ascii))
+	// Para un nuevo disco o la primera partición de un disco, retornamos 'A'
+	return string(ultima_letra)
 }
 
-// Busca por direccion y obtiene el numero
+// Buscar_numero busca por dirección y obtiene el número de partición correspondiente al disco.
 func Buscar_numero(direccion string, lista *Lista) int {
 	aux := lista.Primero
-	retorno := 1
+	numero := 1 // Empezamos con el número 1
 
+	// Recorremos la lista de montajes
 	for aux != nil {
 		if direccion == aux.Direccion {
-			return retorno
+			// Si encontramos particiones del mismo disco, incrementamos el número
+			numero++
 		}
-
 		aux = aux.Siguiente
-		retorno++
 	}
 
-	return retorno
+	// Retornamos el número disponible para la partición
+	return numero
 }
 
 // Busca por direccion y nombre retorna un boolean

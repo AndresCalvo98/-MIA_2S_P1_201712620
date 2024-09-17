@@ -35,12 +35,14 @@ type MBR struct {
 
 // Partition
 type Partition struct {
-	Part_status [100]byte
-	Part_type   [100]byte
-	Part_fit    [100]byte
-	Part_start  [100]byte
-	Part_size   [100]byte
-	Part_name   [100]byte
+	Part_status      [100]byte
+	Part_type        [100]byte
+	Part_fit         [100]byte
+	Part_start       [100]byte
+	Part_size        [100]byte
+	Part_name        [100]byte
+	Part_Correlative [100]byte
+	Part_ID          [100]byte
 }
 
 // Extended Boot Record
@@ -330,6 +332,7 @@ func mkdisk(commandArray []string) {
 		/* PARAMETRO NO VALIDO */
 		default:
 			salida_comando += "[ERROR] Parametro no valido...\\n"
+			band_error = true // <-- Error para parámetro no válido
 		}
 	}
 
@@ -395,6 +398,8 @@ func mkdisk(commandArray []string) {
 					copy(master_boot_record.Mbr_partition[i].Part_start[:], "-1")
 					copy(master_boot_record.Mbr_partition[i].Part_size[:], "0")
 					copy(master_boot_record.Mbr_partition[i].Part_name[:], "")
+					copy(master_boot_record.Mbr_partition[i].Part_Correlative[:], "0") // Inicializar el Correlativo
+					copy(master_boot_record.Mbr_partition[i].Part_ID[:], "")           // Inicializar el ID
 				}
 
 				// Convierto de entero a string
@@ -706,6 +711,8 @@ func fdisk(commandArray []string) {
 }
 
 /* MOUNT 1.0 */
+
+/* MOUNT 2.4 */
 func mount(commandArray []string) {
 	salida_comando += "[MENSAJE] El comando MOUNT aqui inicia\\n"
 
@@ -724,7 +731,7 @@ func mount(commandArray []string) {
 		data := strings.ToLower(aux_data[0])
 		val_data := aux_data[1]
 
-		// Identifica los parametos
+		// Identifica los parametros
 		switch {
 		/* PARAMETRO OBLIGATORIO -> PATH */
 		case strings.Contains(data, "path="):
@@ -733,142 +740,104 @@ func mount(commandArray []string) {
 				band_error = true
 				break
 			}
-
 			// Activo la bandera del parametro
 			band_path = true
 
 			// Reemplaza comillas
 			val_path = strings.Replace(val_data, "\"", "", 2)
+
 		/* PARAMETRO OBLIGATORIO -> NAME */
 		case strings.Contains(data, "name="):
-			// Valido si el parametro ya fue ingresado
 			if band_name {
 				salida_comando += "[ERROR] El parametro -name ya fue ingresado...\\n"
 				band_error = true
 				break
 			}
-
 			// Activo la bandera del parametro
 			band_name = true
 
 			// Reemplaza comillas
 			val_name = strings.Replace(val_data, "\"", "", 2)
+
 		/* PARAMETRO NO VALIDO */
 		default:
 			salida_comando += "[ERROR] Parametro no valido...\\n"
 		}
 	}
 
-	// Si no hay reptidos
+	// Si no hay errores y ambos parámetros son válidos
 	if !band_error {
-		//Parametro obligatorio
-		if band_path {
-			if band_name {
-				index_p := buscar_particion_p_e(val_path, val_name)
-				// Si existe
-				if index_p != -1 {
-					// Apertura del archivo
-					f, err := os.OpenFile(val_path, os.O_RDWR, 0660)
+		if band_path && band_name {
+			// Buscar partición primaria o extendida
+			index_p := buscar_particion_p_e(val_path, val_name)
 
-					if err == nil {
-						mbr_empty := MBR{}
+			if index_p != -1 {
+				// Apertura del archivo
+				f, err := os.OpenFile(val_path, os.O_RDWR, 0660)
 
-						// Calculo del tamaño de struct en bytes
-						mbr2 := struct_a_bytes(mbr_empty)
-						sstruct := len(mbr2)
+				if err == nil {
+					mbr_empty := MBR{}
 
-						// Lectrura del archivo binario desde el inicio
-						lectura := make([]byte, sstruct)
-						f.Seek(0, io.SeekStart)
-						f.Read(lectura)
+					// Calculo del tamaño de struct en bytes
+					mbr2 := struct_a_bytes(mbr_empty)
+					sstruct := len(mbr2)
 
-						// Conversion de bytes a struct
-						master_boot_record := bytes_a_struct_mbr(lectura)
+					// Lectura del archivo binario desde el inicio
+					lectura := make([]byte, sstruct)
+					f.Seek(0, io.SeekStart)
+					f.Read(lectura)
 
-						// Colocamos la particion ocupada
-						copy(master_boot_record.Mbr_partition[index_p].Part_status[:], "2")
+					// Conversion de bytes a struct
+					master_boot_record := bytes_a_struct_mbr(lectura)
 
-						// Conversion de struct a bytes
+					// Actualizamos la partición como ocupada
+					copy(master_boot_record.Mbr_partition[index_p].Part_status[:], "2")
+
+					// Verificar si la partición ya está montada
+					if Mount.Buscar_particion(val_path, val_name, lista_montajes) {
+						salida_comando += "[ERROR] La particion ya esta montada...\\n"
+					} else {
+						// Asignar el correlativo de partición (número)
+						num_correlativo := Mount.Buscar_numero(val_path, lista_montajes)
+
+						// Convertir el número de correlativo a string
+						correlativo_str := strconv.Itoa(num_correlativo)
+
+						// Convertir el string a un arreglo de bytes
+						correlativo_bytes := []byte(correlativo_str)
+
+						// Asignar el correlativo a la partición
+						copy(master_boot_record.Mbr_partition[index_p].Part_Correlative[:], correlativo_bytes)
+
+						// Buscar la letra de la partición (si es nuevo disco, usa una nueva letra)
+						letra_particion := Mount.Buscar_letra(val_path, lista_montajes)
+
+						// Generar el ID con el número y letra correspondientes
+						id := "20" + correlativo_str + letra_particion
+
+						// Asignar ID a la partición
+						copy(master_boot_record.Mbr_partition[index_p].Part_ID[:], id)
+
+						// Guardar el struct actualizado en el archivo
 						mbr_byte := struct_a_bytes(master_boot_record)
-
-						// Se posiciona al inicio del archivo para guardar la informacion del disco
 						f.Seek(0, io.SeekStart)
 						f.Write(mbr_byte)
 						f.Close()
 
-						if Mount.Buscar_particion(val_path, val_name, lista_montajes) {
-							salida_comando += "[ERROR] La particion ya esta montada...\\n"
-						} else {
-							num := Mount.Buscar_numero(val_path, lista_montajes)
-							letra := Mount.Buscar_letra(val_path, lista_montajes)
-							id := "30" + strconv.Itoa(num) + letra
-
-							var n *Mount.Nodo = Mount.New_nodo(id, val_path, val_name, letra, num)
-							Mount.Insertar(n, lista_montajes)
-							salida_comando += "[SUCCES] Particion montada con exito!\\n"
-							salida_comando += Mount.Imprimir_contenido(lista_montajes)
-						}
-					} else {
-						salida_comando += "[ERROR] No se encuentra el disco...\\n"
+						// Insertar partición en la lista de montajes
+						var nodo *Mount.Nodo = Mount.New_nodo(id, val_path, val_name, letra_particion, num_correlativo)
+						Mount.Insertar(nodo, lista_montajes)
+						salida_comando += "[SUCCES] Particion montada con exito!\\n"
+						salida_comando += Mount.Imprimir_contenido(lista_montajes)
 					}
 				} else {
-					//Posiblemente logica
-					index_p := buscar_particion_l(val_path, val_name)
-					if index_p != -1 {
-						// Apertura del archivo
-						f, err := os.OpenFile(val_path, os.O_RDWR, 0660)
-
-						if err == nil {
-							ebr_empty := EBR{}
-
-							// Calculo del tamaño de struct en bytes
-							ebr2 := struct_a_bytes(ebr_empty)
-							sstruct := len(ebr2)
-
-							// Lectrura del archivo binario desde el inicio
-							lectura := make([]byte, sstruct)
-							f.Seek(int64(index_p), io.SeekStart)
-							f.Read(lectura)
-
-							// Conversion de bytes a struct
-							extended_boot_record := bytes_a_struct_ebr(lectura)
-
-							// Colocamos la particion ocupada
-							copy(extended_boot_record.Part_status[:], "2")
-
-							// Conversion de struct a bytes
-							mbr_byte := struct_a_bytes(extended_boot_record)
-
-							// Se posiciona al inicio del archivo para guardar la informacion del disco
-							f.Seek(int64(index_p), io.SeekStart)
-							f.Write(mbr_byte)
-							f.Close()
-
-							if Mount.Buscar_particion(val_path, val_name, lista_montajes) {
-								salida_comando += "[ERROR] La particion ya esta montada...\\n"
-							} else {
-								num := Mount.Buscar_numero(val_path, lista_montajes)
-								letra := Mount.Buscar_letra(val_path, lista_montajes)
-								id := "30" + strconv.Itoa(num) + letra
-
-								var n *Mount.Nodo = Mount.New_nodo(id, val_path, val_name, letra, num)
-								Mount.Insertar(n, lista_montajes)
-								salida_comando += "[SUCCES] Particion montada con exito!\\n"
-								salida_comando += Mount.Imprimir_contenido(lista_montajes)
-							}
-						} else {
-							salida_comando += "[ERROR] No se encuentra el disco...\\n"
-						}
-
-					} else {
-						salida_comando += "[ERROR] No se encuentra la particion a montar...\\n"
-					}
+					salida_comando += "[ERROR] No se encuentra el disco...\\n"
 				}
 			} else {
-				salida_comando += "[ERROR] Parametro -name no definido...\\n"
+				salida_comando += "[ERROR] No se encuentra la particion a montar...\\n"
 			}
 		} else {
-			salida_comando += "[ERROR] Parametro -path no definido...\\n"
+			salida_comando += "[ERROR] Faltan parametros obligatorios (-path y -name)...\\n"
 		}
 	}
 
@@ -1922,6 +1891,7 @@ func crear_particion_extendia(direccion string, nombre string, size int, fit str
 	}
 }
 
+// Crea la Particion logica
 func crear_particion_logica(direccion string, nombre string, size int, fit string, unit string) {
 	aux_fit := ""
 	aux_unit := ""
